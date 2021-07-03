@@ -29,3 +29,5 @@ unix {
     target.path = /usr/lib
 }
 !isEmpty(target.path): INSTALLS += target
+
+unix:!macx: LIBS += -lwiringPi

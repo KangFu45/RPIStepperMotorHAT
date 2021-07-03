@@ -5,6 +5,12 @@
 
 #include "RPIConfig.h"
 
+#include <vector>
+#include <thread>
+
+#include <QObject>
+#include <QTimer>
+
 /*
 控制树莓派步进电机驱动板DRV8825的动态库
 2个步进电机+4个限位开关
@@ -32,7 +38,7 @@ private:
 
 };
 
-class RPISTEPPERMOTORHAT_EXPORT Motor
+class Motor
 {
 public:
     Motor(MotorNumber);
@@ -40,14 +46,16 @@ public:
 
     struct Para
     {
-        double nPulesLap;		// 轴转动每圈脉冲值
-        double dGearRatio;      // 传动比率
+        MotorNumber eNum;
+
+        double nPulesLap = 1000.0;		// 轴转动每圈脉冲值
+        double dGearRatio = 1.0;      // 传动比率
 
         //回零参数
         bool bHomeDir;	//回零方向
 
-        double dMinPosMM;		// 最小值，mm，默认为归零点，旋转轴无此值
-        double dMaxPosMM;		// 最大值，mm，旋转轴无此值
+        double dMinPosMM = -100;		// 最小值，mm，默认为归零点，旋转轴无此值
+        double dMaxPosMM = 100;		// 最大值，mm，旋转轴无此值
 
         double dAcc;	//加速度
         double dDec;	//减速度
@@ -77,13 +85,15 @@ public:
     //急停
     void Stop();
 
-private:
-    MotorNumber m_Num;
+    void UpdateStatus(bool ignore = false);
 
+private:
     //步进
     //目标脉冲位置 pluse
     //目标脉冲速度 pluse/s
     void Step(long steps, long vel);
+
+    std::thread* m_pThread;
 
     //pin
     UBYTE m_EnablePin;
@@ -92,7 +102,35 @@ private:
     UBYTE m_M0Pin;
     UBYTE m_M1Pin;
     UBYTE m_M2Pin;
+
+    bool m_bThreadExit = false;
 };
 
+class RPISTEPPERMOTORHAT_EXPORT RPIMotion : public QObject
+{
+    Q_OBJECT
+
+public:
+    RPIMotion();
+    ~RPIMotion();
+
+    void AddMotor(MotorNumber);
+
+    //点动运动
+    void MotorTrapMove(MotorNumber, const double& pos, const double& vel, MotorDir dir, const bool& absolute = true);
+
+    //回零，限位回零方式
+    void MotorGoHome(MotorNumber);
+
+    //急停
+    void MotorStop(MotorNumber);
+
+private:
+    std::vector<Motor*> m_vMotorPtrs;
+
+    Motor* FindMotor(MotorNumber);
+
+    QTimer* m_pTimer = nullptr;
+};
 
 #endif // RPISTEPPERMOTORHAT_H
