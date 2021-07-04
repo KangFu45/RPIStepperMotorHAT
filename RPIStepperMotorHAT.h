@@ -57,8 +57,8 @@ public:
         double dMinPosMM = -100;		// 最小值，mm，默认为归零点，旋转轴无此值
         double dMaxPosMM = 100;		// 最大值，mm，旋转轴无此值
 
-        double dAcc;	//加速度
-        double dDec;	//减速度
+        double dAcc;	//加速度, mm/s
+        double dDec;	//减速度, mm/s
     }m_Para;
 
     struct Status
@@ -85,15 +85,19 @@ public:
     //急停
     void Stop();
 
+    //更新状态，ignore==true初始化更新
     void UpdateStatus(bool ignore = false);
 
 private:
     //步进
     //目标脉冲位置 pluse
-    //目标脉冲速度 pluse/s
-    void Step(long steps, long vel);
+    //目标脉冲速度 pluse/ms
+    void Step(long steps, double vel);
 
+    //TODO：线程管理
+    //每个电机在独立的线程中运动，step（）会先销毁之前的线程再初始化一个新的线程
     std::thread* m_pThread;
+    bool m_bThreadExit = false; //运动线程退出标志
 
     //pin
     UBYTE m_EnablePin;
@@ -102,8 +106,6 @@ private:
     UBYTE m_M0Pin;
     UBYTE m_M1Pin;
     UBYTE m_M2Pin;
-
-    bool m_bThreadExit = false;
 };
 
 class RPISTEPPERMOTORHAT_EXPORT RPIMotion : public QObject

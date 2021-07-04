@@ -5,6 +5,7 @@
 #include <QDebug>
 
 static const uint gDelayMs = 2;
+static const uint gMaxDelayMs = 1000;
 
 Motor::Motor(MotorNumber num)
 {
@@ -32,7 +33,6 @@ Motor::Motor(MotorNumber num)
         break;
     }
 
-    qDebug()<<"pinMode() all pin";
     pinMode(m_EnablePin, OUTPUT);
     pinMode(m_DirPin, OUTPUT);
     pinMode(m_StepPin, OUTPUT);
@@ -40,7 +40,6 @@ Motor::Motor(MotorNumber num)
     pinMode(m_M1Pin, OUTPUT);
     pinMode(m_M2Pin, OUTPUT);
 
-    qDebug()<<"digitalWrite() enable";
     digitalWrite(m_EnablePin, 1);
 }
 
@@ -79,10 +78,9 @@ void Motor::TrapMove(const double& pos, const double& vel, MotorDir dir, const b
         tPos = m_Para.dMinPosMM;
     if (tPos > m_Para.dMaxPosMM)
         tPos = m_Para.dMaxPosMM;
-    qDebug()<<"tPos: "<<tPos;
+
     //mm->pules
-    long sPos = tPos / m_Para.dGearRatio * m_Para.nPulesLap;//绝对位置
-    qDebug()<<"sPos: "<<sPos;
+    long sPos = tPos / m_Para.dGearRatio * m_Para.nPulesLap;//绝对位置    
 
     //mm/ms->pules/ms
     double tVel = vel / m_Para.dGearRatio * m_Para.nPulesLap;
@@ -100,19 +98,41 @@ void Motor::GoHome()
 
 void Motor::Stop()
 {
-    qDebug()<<"run: "<<m_Status.bRun;
     if(m_Status.bRun){
-        //m_Status.bRun = false;
-        qDebug()<<"Stop() delete thread";
         m_bThreadExit = true;
         m_pThread->join();
         delete m_pThread;
-        qDebug()<<"Stop() delete thread down";
+    }
+}
+
+//计算速度曲线
+//输入：起始脉冲距离(pluse)，加减速度(pluse/ms2)，目标速度(pluse/ms)
+//输出：加减速阶段延时长(ms)，加速结束及减速开始位置(pluse)
+bool CalVelocityLine(long beginPos, long endPos,
+                     double vel, double acc, double dec,
+                     long& accEndPos, long& decBeginPos)
+{
+    //1.确定匀加减速阶段距离
+    //完整的加减速时间
+    double accTime = vel / acc;
+    double decTime = vel / dec;
+    long accDistance = acc * accTime * accTime * 0.5;
+    long decDistance = dec * decTime * decTime * 0.5;
+
+    if((accDistance + decDistance) > labs(endPos - beginPos)){
+        //达到目标速度
+        accEndPos = beginPos + accDistance;
+        decBeginPos = endPos - decDistance;
+        return true;
+    }
+    else{
+        //未达到目标速度
+        return false;
     }
 }
 
 //TODO:电机加减速
-void Motor::Step(long steps, long vel)
+void Motor::Step(long steps, double vel)
 {
     //1.设置方向
     bool bDir;
@@ -127,13 +147,20 @@ void Motor::Step(long steps, long vel)
     else
         return;
 
-    m_Status.bRun = true;
-
     //2.设置速度，计算延时长度
+    //mm/s->pluse/ms
+    double acc = m_Para.dAcc / m_Para.dGearRatio * m_Para.nPulesLap * 1000;
+    double dec = m_Para.dDec / m_Para.dGearRatio * m_Para.nPulesLap * 1000;
+    long accEndPos, decBeginPos;
+    if(!CalVelocityLine(0, steps,vel,acc,dec,accEndPos,decBeginPos))
+        return;
+    qDebug()<<accEndPos<<" "<<decBeginPos;
 
     //3.发射相对脉冲数
+    m_Status.bRun = true;
+
     unsigned long tSteps = labs(steps - m_Status.lPrfPos);
-    qDebug()<<"Step() "<<tSteps;
+
     for (unsigned long i = 0; i < tSteps; i++) {
         if(m_bThreadExit)
             break;
