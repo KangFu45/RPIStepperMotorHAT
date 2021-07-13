@@ -17,12 +17,14 @@ DEFINES += QT_DEPRECATED_WARNINGS
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    RPIStepperMotorHAT.cpp
+    RPIStepperMotorHAT.cpp \
+    RPISignals.cpp
 
 HEADERS += \
     RPIConfig.h \
     RPIStepperMotorHAT.h \
-    RPIStepperMotorHAT_global.h
+    RPIStepperMotorHAT_global.h \
+    RPISignals.h
 
 # Default rules for deployment.
 unix {
